@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	_ "embed"
+	"bytes"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -56,6 +58,10 @@ var inputWidget *widget.Label = widget.NewLabel("Browse to folder to download: \
 
 // errorWidget shows error messages
 var error_msg = canvas.NewText("", color.RGBA{200, 0, 0, 100})
+
+// Embed TNRIS_LOGO.png in binary
+//go:embed TNRIS_LOGO.png
+var logobytes []byte
 
 var pbar *widget.ProgressBar
 
@@ -125,8 +131,8 @@ func main() {
 			go getData(*input)
 		}
 	})
-	
-	logo := canvas.NewImageFromFile("TNRIS_LOGO.png")
+	var lb = bytes.NewReader(logobytes)
+	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TNRIS_LOGO.png")
 	logo.FillMode = canvas.ImageFillContain
 	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input), logo)
 	filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
