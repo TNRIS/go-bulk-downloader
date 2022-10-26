@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"fyne.io/fyne/v2/theme"
 	"github.com/google/uuid"
 )
 var wg sync.WaitGroup
@@ -81,7 +82,7 @@ type DataHubItems struct {
 // main sets up the GUI and button actions
 func main() {
 	myApp := app.New()
-
+	myApp.Settings().SetTheme(theme.DarkTheme())
 	//Configure error message
 	error_msg.TextStyle = fyne.TextStyle{Bold: true}
 
