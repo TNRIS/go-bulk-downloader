@@ -63,6 +63,9 @@ var error_msg = canvas.NewText("", color.RGBA{200, 0, 0, 100})
 //go:embed TNRIS_LOGO.png
 var logobytes []byte
 
+// log list of downloads
+var logData []string
+
 var pbar *widget.ProgressBar
 
 type RId struct {
@@ -144,9 +147,22 @@ func main() {
 	
 	inputBrowse := container.New(layout.NewGridLayout(3), smallInLab, smallBrowseButton, layout.NewSpacer())
 	
+	logList := widget.NewList(
+		func() int {
+			return len(logData)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("LogData")
+		},
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(logData[i])
+		})
+		
+	outLog := container.New(layout.NewMaxLayout(), logList)
+
 	item1 := container.New(layout.NewGridLayout(1), contentUUID, inputBrowse, filterNote)
 	item2 := container.New(layout.NewMaxLayout(), container.NewVScroll(getCategories()))
-	item3 := container.New(layout.NewGridLayout(1), pbar, out_msg, error_msg, stopStartBtn)
+	item3 := container.New(layout.NewGridLayout(1), pbar, outLog, error_msg, stopStartBtn)
 	allstuff := container.New(layout.NewGridLayout(1), item1, item2, item3)
 	myWindow.SetContent(allstuff)
 	myWindow.ShowAndRun()
@@ -246,7 +262,7 @@ func downloadData(url string, id string, progress []int) {
 
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
-
+	logData = append(logData, fname + " Downloading")
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
 	
@@ -259,6 +275,8 @@ func downloadData(url string, id string, progress []int) {
 	fmt.Println("status", resp.Status)
 	if resp.StatusCode != 200 {
 		log.Println("Statuscode is not 200")
+		downloading--
+		wg.Done()
 		return
 	}
 
@@ -279,6 +297,7 @@ func downloadData(url string, id string, progress []int) {
 	pbar.SetValue(f)
 	updateDownloadProgress(fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
 	wg.Done()
+	logData = append(logData, fname + " Finished. " + fmt.Sprint(downloading) + " In queue. " + fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
 
 	if err != nil {
 		log.Println("err: " + err.Error())
