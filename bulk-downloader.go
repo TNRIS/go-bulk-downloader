@@ -1,25 +1,25 @@
 package main
 
 import (
+	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"image/color"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
-	_ "embed"
-	"bytes"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 	"github.com/google/uuid"
 )
 var wg sync.WaitGroup
@@ -44,9 +44,6 @@ var downloaded int = 0
 // Keeps track of all the responses
 var currentDownloads []*http.Response
 
-// out_msg is a Widget that is meant to give feedback for download progress.
-var out_msg *widget.Label
-
 // checkBoxes are different categories you can select to limit what types of files to download.
 var checkBoxes []*widget.Check
 
@@ -56,9 +53,6 @@ var sel_ctgry string = ""
 // inputWidget keeps track of where we will download the files to.
 var inputWidget *widget.Label = widget.NewLabel("Browse to folder to download: \n" + save_dir)
 
-// errorWidget shows error messages
-var error_msg = canvas.NewText("", color.RGBA{200, 0, 0, 100})
-
 // Embed TNRIS_LOGO.png in binary
 //go:embed TNRIS_LOGO.png
 var logobytes []byte
@@ -66,6 +60,11 @@ var logobytes []byte
 // log list of downloads
 var logData []string
 
+// Keep track of widget position
+var pos float32
+
+var categories *container.Scroll
+var outLog *widget.List
 var pbar *widget.ProgressBar
 
 type RId struct {
@@ -88,21 +87,8 @@ type DataHubItems struct {
 	Next string `json:"next"`
 }
 
-// main sets up the GUI and button actions
-func main() {
-	myApp := app.New()
-	myApp.Settings().SetTheme(theme.DarkTheme())
-	//Configure error message
-	error_msg.TextStyle = fyne.TextStyle{Bold: true}
-
-	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
-	input := widget.NewEntry()
-	pbar = widget.NewProgressBar()
-	pbar.Hide()
-
-	browseButton := widget.NewButton("Browse", func() {
-		error_msg.Text = "" // Clear error messge
-		error_msg.Refresh()
+func configBrowseButton(myWindow fyne.Window) *widget.Button {
+	return widget.NewButton("Browse", func() {
 		dialog.ShowFolderOpen(func(dir fyne.ListableURI, err error) {
 			if err != nil {
 				dialog.ShowError(err, myWindow)
@@ -114,56 +100,101 @@ func main() {
 			}
 		}, myWindow)
 	})
+}
 
-	stopButton := widget.NewButton("Stop", func() {
-		pbar.Hide()
-		error_msg.Text = "" // Clear error messge
-		error_msg.Refresh()
+func configStopButton() *widget.Button {
+	return widget.NewButton("Stop", func() {
 		cancelDownloads(true)
 		stop_now = true
 		running = false
-		updateDownloadProgress("")
 	})
+}
 
-	getDataButton := widget.NewButton("Get Data", func() {
-		error_msg.Text = "" // Clear error messge
-		error_msg.Refresh()
+func configGetDataButton(input *widget.Entry) *widget.Button {
+	return widget.NewButton("Get Data", func() {
 		// Run download on a seperate thread from the UI
 		if(!running) {
 			running = true
 			go getData(*input)
 		}
 	})
+}
+
+func configLog() *widget.List {
+	return widget.NewList(
+		func() int {
+			return len(logData)
+		},
+		func() fyne.CanvasObject {
+			// Set default message, and color
+			return canvas.NewText("LogData", color.White)
+		},
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			if(strings.HasSuffix(logData[i], " Completed")) {
+				// Set text to Green.
+				o.(*canvas.Text).Color = color.RGBA{0, 255, 0, 0}
+			} else if(strings.HasPrefix(logData[i], "Error: ")) {
+				// Set text to Red
+				o.(*canvas.Text).Color = color.RGBA{255, 0, 0, 0}
+			} else {
+				o.(*canvas.Text).Color = color.White
+			}
+			o.(*canvas.Text).Text = logData[i];
+		})
+}
+
+// main sets up the GUI and button actions
+func main() {
+	// Configure the application
+	myApp := app.New()
+	myApp.Settings().SetTheme(theme.DarkTheme())
+
+	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
+	input := widget.NewEntry()
+	pbar = widget.NewProgressBar()
+
+	browseButton := configBrowseButton(myWindow)
+	stopButton := configStopButton()
+	getDataButton := configGetDataButton(input)
+	
 	var lb = bytes.NewReader(logobytes)
 	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TNRIS_LOGO.png")
 	logo.FillMode = canvas.ImageFillContain
-	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input), logo)
-	filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
-	out_msg = widget.NewLabel("")
+	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
+	//filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
 	
-	stopStartBtn := container.New(layout.NewGridLayout(2), container.New(layout.NewVBoxLayout(), stopButton), container.New(layout.NewVBoxLayout(), getDataButton))
+	stopStartBtn := container.New(layout.NewGridLayout(2), stopButton, getDataButton)
 	smallInLab:= container.New(layout.NewVBoxLayout(), inputWidget)
 	smallBrowseButton := container.New(layout.NewVBoxLayout(), browseButton)
 	
 	inputBrowse := container.New(layout.NewGridLayout(3), smallInLab, smallBrowseButton, layout.NewSpacer())
 	
-	logList := widget.NewList(
-		func() int {
-			return len(logData)
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabel("LogData")
-		},
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(logData[i])
-		})
-		
-	outLog := container.New(layout.NewMaxLayout(), logList)
+	// Configure the Log
+	outLog = configLog()
 
-	item1 := container.New(layout.NewGridLayout(1), contentUUID, inputBrowse, filterNote)
-	item2 := container.New(layout.NewMaxLayout(), container.NewVScroll(getCategories()))
-	item3 := container.New(layout.NewGridLayout(1), pbar, outLog, error_msg, stopStartBtn)
-	allstuff := container.New(layout.NewGridLayout(1), item1, item2, item3)
+	uuid_input := container.NewVBox(contentUUID, inputBrowse)
+
+	progress_stopStart := container.NewVBox(pbar, stopStartBtn)
+
+	categories = getCategories()
+
+	pos += 200
+	progress_stopStart.Resize(fyne.NewSize(1000,100))
+	progress_stopStart.Move(fyne.NewPos(0, pos))
+
+	pos += 80
+	outLog.Resize(fyne.NewSize(1000,200))
+	outLog.Move(fyne.NewPos(0, pos))
+
+	// Position Logo (Not relative to other containers.)
+	logo_container := container.New(layout.NewGridLayoutWithColumns(1), logo)
+	logo_container.Resize(fyne.NewSize(160,160))
+	logo_container.Move(fyne.NewPos(740, -40))
+
+
+	allstuff := container.NewWithoutLayout(uuid_input, categories, progress_stopStart, outLog, logo_container)
+	myWindow.Resize(fyne.NewSize(1000, 600))
+
 	myWindow.SetContent(allstuff)
 	myWindow.ShowAndRun()
 }
@@ -181,10 +212,12 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 	}
 
 	resp, err := http.Get(getUrl)
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
+	}
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
-		error_msg.Text = "Error in getResp()"
-		error_msg.Refresh()
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 	defer resp.Body.Close()
 
@@ -194,24 +227,21 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 	return results
 }
 
-// getData initiates gathering the list of files to download and kicks off the downloads.
+// getData initiates gathering the list of filebitcoin
+		
 func getData(input widget.Entry) {
-	// Show progress bar
-	pbar.Show()
-
+	pbar.SetValue(0.0)
 	stop_now = false
 	downloaded = 0
 
 	if(!IsValidUUID(input.Text)) {
-		error_msg.Text = "TNRIS Datahub Collection ID is invalid."
-		error_msg.Refresh()
 		running = false
+		printLog("Error: TNRIS Datahub Collection ID is invalid.")
 		return
 	}
 	if(len([]rune(save_dir)) == 0) {
-		error_msg.Text = "No directory has been chosen"
-		error_msg.Refresh()
 		running = false
+		printLog("Error: No directory has been chosen.")
 		return
 	}
 
@@ -231,6 +261,10 @@ func getData(input widget.Entry) {
 		allResults = append(allResults, thing1.Results...)
 	}
 
+	if(len(allResults) <= 0) {
+		printLog("Error: No data found.")
+	}
+
 	for i := 0; i < len(allResults); i++ {
 		// Download 4 items at a time
 		if !stop_now && downloading <= 3 {
@@ -248,12 +282,7 @@ func getData(input widget.Entry) {
 		}
 	}
 
-	updateDownloadProgress( "0 / " + fmt.Sprint(len(allResults)))
 	running = false
-}
-
-func updateDownloadProgress(msg string) {
-	out_msg.SetText(msg)
 }
 
 //downloadData downloads each zip file individually
@@ -262,46 +291,54 @@ func downloadData(url string, id string, progress []int) {
 
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
-	logData = append(logData, fname + " Downloading")
+	printLog(fname + " Downloading")
+
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
-	
-	if err != nil {
-		error_msg.Text = "err: " + err.Error()
-		error_msg.Refresh()
+
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 
 	defer resp.Body.Close()
-	fmt.Println("status", resp.Status)
+
 	if resp.StatusCode != 200 {
-		log.Println("Statuscode is not 200")
-		downloading--
-		wg.Done()
+		printLog("Error: Failed to download " + fname + ". Statuscode is: " + fmt.Sprint(resp.StatusCode) + ".")
+		exitDownload()
 		return
 	}
 
 	out, err := os.Create(save_dir + "/" + fname)
 
 	if err != nil {
-		error_msg.Text = "err: " + err.Error()
-		error_msg.Refresh()
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
-	downloading --
-	downloaded ++
+	exitDownload()
 
 	//	update download bar.
 	var f float64 = float64(downloaded) / float64(progress[1])
 	pbar.SetValue(f)
-	updateDownloadProgress(fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
-	wg.Done()
-	logData = append(logData, fname + " Finished. " + fmt.Sprint(downloading) + " In queue. " + fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
+	printLog(fname + " Completed")
+	outLog.ScrollToBottom()
 
 	if err != nil {
-		log.Println("err: " + err.Error())
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
+}
+
+func printLog(msg string) {
+	logData = append(logData, msg)
+	outLog.ScrollToBottom()
+}
+
+// exitDownload updates download progress and stops waiting (wg.Done())
+func exitDownload() {
+	downloaded++
+	downloading--
+	wg.Done()
 }
 
 // cancelDownloads loops over the currentDownloads slice (Each item in the currentDownloads slice is a Http.resp)
@@ -318,14 +355,16 @@ func cancelDownloads(reset bool) {
 	}
 }
 
-func getCategories() *fyne.Container {
+func getCategories() *container.Scroll {
 	base_url := SERVER_LOCATION + "/api/v1/resource_types/"
 
 	resp, err := http.Get(base_url)
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
+	}
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
-		error_msg.Text = "Error in getCategories()"
-		error_msg.Refresh()
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 
 	results := &RIds{}
@@ -356,8 +395,13 @@ func getCategories() *fyne.Container {
 			addCheckToThis(otherBox, &results.Ids[i])
 		}
 	}
+	scrollbox := container.NewScroll(container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox))
 
-	return container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox)
+	pos += 100
+
+	scrollbox.Resize(fyne.NewSize(1000,200))
+	scrollbox.Move(fyne.NewPos(0, pos))
+	return scrollbox
 }
 
 
