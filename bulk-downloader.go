@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -10,16 +12,15 @@ import (
 	"os"
 	"strings"
 	"sync"
-	_ "embed"
-	"bytes"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 	"github.com/google/uuid"
 )
 var wg sync.WaitGroup
@@ -67,7 +68,7 @@ var logData []string
 var pos float32
 
 var categories *container.Scroll
-
+var outLog *widget.List
 var pbar *widget.ProgressBar
 
 type RId struct {
@@ -130,10 +131,18 @@ func configLog() *widget.List {
 			return len(logData)
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("LogData")
+			// Set default message, and color
+			return canvas.NewText("LogData", color.White)
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(logData[i])
+			if(strings.HasSuffix(logData[i], " Completed")) {
+				// Set text to Green.
+				o.(*canvas.Text).Color = color.RGBA{0, 255, 0, 0}
+			} else if(strings.HasPrefix(logData[i], "Error: ")) {
+				// Set text to Red
+				o.(*canvas.Text).Color = color.RGBA{255, 0, 0, 0}
+			}
+			o.(*canvas.Text).Text = logData[i];
 		})
 }
 
@@ -165,8 +174,7 @@ func main() {
 	inputBrowse := container.New(layout.NewGridLayout(3), smallInLab, smallBrowseButton, layout.NewSpacer())
 	
 	// Configure the Log
-	logList := configLog()
-	outLog := container.NewScroll(logList)
+	outLog = configLog()
 
 	uuid_input := container.NewVBox(contentUUID, inputBrowse)
 
@@ -286,8 +294,7 @@ func downloadData(url string, id string, progress []int) {
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
 	logData = append(logData, fname + " Downloading")
-	//scrollToBottom(categories)
-	categories.ScrollToBottom()
+	outLog.ScrollToBottom()
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
 
@@ -318,8 +325,7 @@ func downloadData(url string, id string, progress []int) {
 	pbar.SetValue(f)
 	updateDownloadProgress(fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
 	logData = append(logData, fname + " Completed")
-	//scrollToBottom(categories)
-	categories.ScrollToBottom()
+	outLog.ScrollToBottom()
 
 	if err != nil {
 		log.Println("err: " + err.Error())
@@ -421,12 +427,4 @@ func unselect_all_except(this_check *widget.Check) {
 			checkBoxes[i].SetChecked(false)
 		}
 	}
-}
-
-func scrollToBottom(scrollable *container.Scroll) {
-	
-	//scrollable.Offset.Y = scrollable.Content.MinSize().Height - scrollable.Size().Height
-
-	scrollable.Offset.Y = scrollable.Content.MinSize().Height
-	scrollable.Base.Refresh()
 }
