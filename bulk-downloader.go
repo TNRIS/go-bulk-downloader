@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"image/color"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -44,9 +43,6 @@ var downloaded int = 0
 
 // Keeps track of all the responses
 var currentDownloads []*http.Response
-
-// out_msg is a Widget that is meant to give feedback for download progress.
-var out_msg *widget.Label
 
 // checkBoxes are different categories you can select to limit what types of files to download.
 var checkBoxes []*widget.Check
@@ -111,7 +107,6 @@ func configStopButton() *widget.Button {
 		cancelDownloads(true)
 		stop_now = true
 		running = false
-		updateDownloadProgress("")
 	})
 }
 
@@ -141,6 +136,8 @@ func configLog() *widget.List {
 			} else if(strings.HasPrefix(logData[i], "Error: ")) {
 				// Set text to Red
 				o.(*canvas.Text).Color = color.RGBA{255, 0, 0, 0}
+			} else {
+				o.(*canvas.Text).Color = color.White
 			}
 			o.(*canvas.Text).Text = logData[i];
 		})
@@ -165,7 +162,6 @@ func main() {
 	logo.FillMode = canvas.ImageFillContain
 	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
 	//filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
-	out_msg = widget.NewLabel("")
 	
 	stopStartBtn := container.New(layout.NewGridLayout(2), stopButton, getDataButton)
 	smallInLab:= container.New(layout.NewVBoxLayout(), inputWidget)
@@ -177,10 +173,6 @@ func main() {
 	outLog = configLog()
 
 	uuid_input := container.NewVBox(contentUUID, inputBrowse)
-
-	// Position the containers
-	//top := container.New(layout.NewGridLayoutWithColumns(1), input_browse, getCategories())
-	//top.Resize(fyne.NewSize(1000,200))
 
 	progress_stopStart := container.NewVBox(pbar, stopStartBtn)
 
@@ -220,9 +212,12 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 	}
 
 	resp, err := http.Get(getUrl)
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
+	}
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
-		//TODO
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 	defer resp.Body.Close()
 
@@ -232,17 +227,21 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 	return results
 }
 
-// getData initiates gathering the list of files to download and kicks off the downloads.
+// getData initiates gathering the list of filebitcoin
+		
 func getData(input widget.Entry) {
+	pbar.SetValue(0.0)
 	stop_now = false
 	downloaded = 0
 
 	if(!IsValidUUID(input.Text)) {
 		running = false
+		printLog("Error: TNRIS Datahub Collection ID is invalid.")
 		return
 	}
 	if(len([]rune(save_dir)) == 0) {
 		running = false
+		printLog("Error: No directory has been chosen.")
 		return
 	}
 
@@ -262,6 +261,10 @@ func getData(input widget.Entry) {
 		allResults = append(allResults, thing1.Results...)
 	}
 
+	if(len(allResults) <= 0) {
+		printLog("Error: No data found.")
+	}
+
 	for i := 0; i < len(allResults); i++ {
 		// Download 4 items at a time
 		if !stop_now && downloading <= 3 {
@@ -279,12 +282,7 @@ func getData(input widget.Entry) {
 		}
 	}
 
-	updateDownloadProgress( "0 / " + fmt.Sprint(len(allResults)))
 	running = false
-}
-
-func updateDownloadProgress(msg string) {
-	out_msg.SetText(msg)
 }
 
 //downloadData downloads each zip file individually
@@ -293,19 +291,19 @@ func downloadData(url string, id string, progress []int) {
 
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
-	logData = append(logData, fname + " Downloading")
-	outLog.ScrollToBottom()
+	printLog(fname + " Downloading")
+
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
 
-	if err != nil {
-		//TODO
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		logData = append(logData, "Failed to download " + fname + ". Statuscode is: " + fmt.Sprint(resp.StatusCode) + ".")
+		printLog("Error: Failed to download " + fname + ". Statuscode is: " + fmt.Sprint(resp.StatusCode) + ".")
 		exitDownload()
 		return
 	}
@@ -313,7 +311,7 @@ func downloadData(url string, id string, progress []int) {
 	out, err := os.Create(save_dir + "/" + fname)
 
 	if err != nil {
-		//TODO
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 	defer out.Close()
 
@@ -323,13 +321,17 @@ func downloadData(url string, id string, progress []int) {
 	//	update download bar.
 	var f float64 = float64(downloaded) / float64(progress[1])
 	pbar.SetValue(f)
-	updateDownloadProgress(fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
-	logData = append(logData, fname + " Completed")
+	printLog(fname + " Completed")
 	outLog.ScrollToBottom()
 
 	if err != nil {
-		log.Println("err: " + err.Error())
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
+}
+
+func printLog(msg string) {
+	logData = append(logData, msg)
+	outLog.ScrollToBottom()
 }
 
 // exitDownload updates download progress and stops waiting (wg.Done())
@@ -357,9 +359,12 @@ func getCategories() *container.Scroll {
 	base_url := SERVER_LOCATION + "/api/v1/resource_types/"
 
 	resp, err := http.Get(base_url)
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
+	}
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
-		//TODO
+		printLog(fmt.Sprintf("Error: %s", err))
 	}
 
 	results := &RIds{}
