@@ -63,6 +63,11 @@ var logobytes []byte
 // log list of downloads
 var logData []string
 
+// Keep track of widget position
+var pos float32
+
+var categories *container.Scroll
+
 var pbar *widget.ProgressBar
 
 type RId struct {
@@ -100,48 +105,27 @@ func configBrowseButton(myWindow fyne.Window) *widget.Button {
 	})
 }
 
-// main sets up the GUI and button actions
-func main() {
-	// Configure the application
-	myApp := app.New()
-	myApp.Settings().SetTheme(theme.DarkTheme())
-
-	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
-	input := widget.NewEntry()
-	pbar = widget.NewProgressBar()
-	pbar.Hide()
-
-	browseButton := configBrowseButton(myWindow)
-
-	stopButton := widget.NewButton("Stop", func() {
-		pbar.Hide()
+func configStopButton() *widget.Button {
+	return widget.NewButton("Stop", func() {
 		cancelDownloads(true)
 		stop_now = true
 		running = false
 		updateDownloadProgress("")
 	})
+}
 
-	getDataButton := widget.NewButton("Get Data", func() {
+func configGetDataButton(input *widget.Entry) *widget.Button {
+	return widget.NewButton("Get Data", func() {
 		// Run download on a seperate thread from the UI
 		if(!running) {
 			running = true
 			go getData(*input)
 		}
 	})
-	var lb = bytes.NewReader(logobytes)
-	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TNRIS_LOGO.png")
-	logo.FillMode = canvas.ImageFillContain
-	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
-	filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
-	out_msg = widget.NewLabel("")
-	
-	stopStartBtn := container.New(layout.NewGridLayout(2), stopButton, getDataButton)
-	smallInLab:= container.New(layout.NewVBoxLayout(), inputWidget)
-	smallBrowseButton := container.New(layout.NewVBoxLayout(), browseButton)
-	
-	inputBrowse := container.New(layout.NewGridLayout(3), smallInLab, smallBrowseButton, layout.NewSpacer())
-	
-	logList := widget.NewList(
+}
+
+func configLog() *widget.List {
+	return widget.NewList(
 		func() int {
 			return len(logData)
 		},
@@ -151,37 +135,68 @@ func main() {
 		func(i widget.ListItemID, o fyne.CanvasObject) {
 			o.(*widget.Label).SetText(logData[i])
 		})
-		
+}
+
+// main sets up the GUI and button actions
+func main() {
+	// Configure the application
+	myApp := app.New()
+	myApp.Settings().SetTheme(theme.DarkTheme())
+
+	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
+	input := widget.NewEntry()
+	pbar = widget.NewProgressBar()
+
+	browseButton := configBrowseButton(myWindow)
+	stopButton := configStopButton()
+	getDataButton := configGetDataButton(input)
+	
+	var lb = bytes.NewReader(logobytes)
+	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TNRIS_LOGO.png")
+	logo.FillMode = canvas.ImageFillContain
+	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
+	//filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
+	out_msg = widget.NewLabel("")
+	
+	stopStartBtn := container.New(layout.NewGridLayout(2), stopButton, getDataButton)
+	smallInLab:= container.New(layout.NewVBoxLayout(), inputWidget)
+	smallBrowseButton := container.New(layout.NewVBoxLayout(), browseButton)
+	
+	inputBrowse := container.New(layout.NewGridLayout(3), smallInLab, smallBrowseButton, layout.NewSpacer())
+	
+	// Configure the Log
+	logList := configLog()
 	outLog := container.NewScroll(logList)
 
-	item1 := container.New(layout.NewVBoxLayout(), contentUUID, inputBrowse, filterNote)
-	//item3 := container.New(layout.NewVBoxLayout(), pbar, stopStartBtn)
+	uuid_input := container.NewVBox(contentUUID, inputBrowse)
 
-	all1 := container.New(layout.NewGridLayoutWithColumns(1), item1, getCategories())
-	all1.Resize(fyne.NewSize(1000,400))
+	// Position the containers
+	//top := container.New(layout.NewGridLayoutWithColumns(1), input_browse, getCategories())
+	//top.Resize(fyne.NewSize(1000,200))
 
-	all2 := container.NewVBox(stopStartBtn)
-	all2.Resize(fyne.NewSize(1000,400))
-	all2.Move(fyne.NewPos(0, 400))
-	//all3 := container.New(layout.NewGridLayout(1), outLog)
-	
+	progress_stopStart := container.NewVBox(pbar, stopStartBtn)
+
+	categories = getCategories()
+
+	pos += 200
+	progress_stopStart.Resize(fyne.NewSize(1000,100))
+	progress_stopStart.Move(fyne.NewPos(0, pos))
+
+	pos += 80
+	outLog.Resize(fyne.NewSize(1000,200))
+	outLog.Move(fyne.NewPos(0, pos))
+
+	// Position Logo (Not relative to other containers.)
 	logo_container := container.New(layout.NewGridLayoutWithColumns(1), logo)
 	logo_container.Resize(fyne.NewSize(160,160))
 	logo_container.Move(fyne.NewPos(740, -40))
 
-	outLog.Resize(fyne.NewSize(1000,200))
-	outLog.Move(fyne.NewPos(0, 440))
 
-	allstuff := container.NewWithoutLayout(all1, all2, outLog, logo_container)
-	pbar.Show() //todo remove
+	allstuff := container.NewWithoutLayout(uuid_input, categories, progress_stopStart, outLog, logo_container)
 	myWindow.Resize(fyne.NewSize(1000, 600))
 
 	myWindow.SetContent(allstuff)
 	myWindow.ShowAndRun()
-}
-
-func setupGUI() {
-	
 }
 
 // isValidUUID checks a string and determines whether it's a uuid or not
@@ -222,8 +237,6 @@ func getData(input widget.Entry) {
 		running = false
 		return
 	}
-	// Show progress bar
-	pbar.Show()
 
 	base_url := SERVER_LOCATION + "/api/v1/resources/"
 	id_query := "?collection_id="
@@ -273,6 +286,8 @@ func downloadData(url string, id string, progress []int) {
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
 	logData = append(logData, fname + " Downloading")
+	//scrollToBottom(categories)
+	categories.ScrollToBottom()
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
 
@@ -303,6 +318,8 @@ func downloadData(url string, id string, progress []int) {
 	pbar.SetValue(f)
 	updateDownloadProgress(fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
 	logData = append(logData, fname + " Completed")
+	//scrollToBottom(categories)
+	categories.ScrollToBottom()
 
 	if err != nil {
 		log.Println("err: " + err.Error())
@@ -367,8 +384,13 @@ func getCategories() *container.Scroll {
 			addCheckToThis(otherBox, &results.Ids[i])
 		}
 	}
+	scrollbox := container.NewScroll(container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox))
 
-	return container.NewVScroll(container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox))
+	pos += 100
+
+	scrollbox.Resize(fyne.NewSize(1000,200))
+	scrollbox.Move(fyne.NewPos(0, pos))
+	return scrollbox
 }
 
 
@@ -399,4 +421,12 @@ func unselect_all_except(this_check *widget.Check) {
 			checkBoxes[i].SetChecked(false)
 		}
 	}
+}
+
+func scrollToBottom(scrollable *container.Scroll) {
+	
+	//scrollable.Offset.Y = scrollable.Content.MinSize().Height - scrollable.Size().Height
+
+	scrollable.Offset.Y = scrollable.Content.MinSize().Height
+	scrollable.Base.Refresh()
 }
