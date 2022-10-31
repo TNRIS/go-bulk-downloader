@@ -56,9 +56,6 @@ var sel_ctgry string = ""
 // inputWidget keeps track of where we will download the files to.
 var inputWidget *widget.Label = widget.NewLabel("Browse to folder to download: \n" + save_dir)
 
-// errorWidget shows error messages
-var error_msg = canvas.NewText("", color.RGBA{200, 0, 0, 100})
-
 // Embed TNRIS_LOGO.png in binary
 //go:embed TNRIS_LOGO.png
 var logobytes []byte
@@ -88,21 +85,8 @@ type DataHubItems struct {
 	Next string `json:"next"`
 }
 
-// main sets up the GUI and button actions
-func main() {
-	myApp := app.New()
-	myApp.Settings().SetTheme(theme.DarkTheme())
-	//Configure error message
-	error_msg.TextStyle = fyne.TextStyle{Bold: true}
-
-	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
-	input := widget.NewEntry()
-	pbar = widget.NewProgressBar()
-	pbar.Hide()
-
-	browseButton := widget.NewButton("Browse", func() {
-		error_msg.Text = "" // Clear error messge
-		error_msg.Refresh()
+func configBrowseButton(myWindow fyne.Window) *widget.Button {
+	return widget.NewButton("Browse", func() {
 		dialog.ShowFolderOpen(func(dir fyne.ListableURI, err error) {
 			if err != nil {
 				dialog.ShowError(err, myWindow)
@@ -114,11 +98,23 @@ func main() {
 			}
 		}, myWindow)
 	})
+}
+
+// main sets up the GUI and button actions
+func main() {
+	// Configure the application
+	myApp := app.New()
+	myApp.Settings().SetTheme(theme.DarkTheme())
+
+	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
+	input := widget.NewEntry()
+	pbar = widget.NewProgressBar()
+	pbar.Hide()
+
+	browseButton := configBrowseButton(myWindow)
 
 	stopButton := widget.NewButton("Stop", func() {
 		pbar.Hide()
-		error_msg.Text = "" // Clear error messge
-		error_msg.Refresh()
 		cancelDownloads(true)
 		stop_now = true
 		running = false
@@ -126,8 +122,6 @@ func main() {
 	})
 
 	getDataButton := widget.NewButton("Get Data", func() {
-		error_msg.Text = "" // Clear error messge
-		error_msg.Refresh()
 		// Run download on a seperate thread from the UI
 		if(!running) {
 			running = true
@@ -137,11 +131,11 @@ func main() {
 	var lb = bytes.NewReader(logobytes)
 	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TNRIS_LOGO.png")
 	logo.FillMode = canvas.ImageFillContain
-	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input), logo)
+	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
 	filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
 	out_msg = widget.NewLabel("")
 	
-	stopStartBtn := container.New(layout.NewGridLayout(2), container.New(layout.NewVBoxLayout(), stopButton), container.New(layout.NewVBoxLayout(), getDataButton))
+	stopStartBtn := container.New(layout.NewGridLayout(2), stopButton, getDataButton)
 	smallInLab:= container.New(layout.NewVBoxLayout(), inputWidget)
 	smallBrowseButton := container.New(layout.NewVBoxLayout(), browseButton)
 	
@@ -158,14 +152,36 @@ func main() {
 			o.(*widget.Label).SetText(logData[i])
 		})
 		
-	outLog := container.New(layout.NewMaxLayout(), logList)
+	outLog := container.NewScroll(logList)
 
-	item1 := container.New(layout.NewGridLayout(1), contentUUID, inputBrowse, filterNote)
-	item2 := container.New(layout.NewMaxLayout(), container.NewVScroll(getCategories()))
-	item3 := container.New(layout.NewGridLayout(1), pbar, outLog, error_msg, stopStartBtn)
-	allstuff := container.New(layout.NewGridLayout(1), item1, item2, item3)
+	item1 := container.New(layout.NewVBoxLayout(), contentUUID, inputBrowse, filterNote)
+	//item3 := container.New(layout.NewVBoxLayout(), pbar, stopStartBtn)
+
+	all1 := container.New(layout.NewGridLayoutWithColumns(1), item1, getCategories())
+	all1.Resize(fyne.NewSize(1000,400))
+
+	all2 := container.NewVBox(stopStartBtn)
+	all2.Resize(fyne.NewSize(1000,400))
+	all2.Move(fyne.NewPos(0, 400))
+	//all3 := container.New(layout.NewGridLayout(1), outLog)
+	
+	logo_container := container.New(layout.NewGridLayoutWithColumns(1), logo)
+	logo_container.Resize(fyne.NewSize(160,160))
+	logo_container.Move(fyne.NewPos(740, -40))
+
+	outLog.Resize(fyne.NewSize(1000,200))
+	outLog.Move(fyne.NewPos(0, 440))
+
+	allstuff := container.NewWithoutLayout(all1, all2, outLog, logo_container)
+	pbar.Show() //todo remove
+	myWindow.Resize(fyne.NewSize(1000, 600))
+
 	myWindow.SetContent(allstuff)
 	myWindow.ShowAndRun()
+}
+
+func setupGUI() {
+	
 }
 
 // isValidUUID checks a string and determines whether it's a uuid or not
@@ -183,8 +199,7 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 	resp, err := http.Get(getUrl)
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
-		error_msg.Text = "Error in getResp()"
-		error_msg.Refresh()
+		//TODO
 	}
 	defer resp.Body.Close()
 
@@ -196,24 +211,19 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 
 // getData initiates gathering the list of files to download and kicks off the downloads.
 func getData(input widget.Entry) {
-	// Show progress bar
-	pbar.Show()
-
 	stop_now = false
 	downloaded = 0
 
 	if(!IsValidUUID(input.Text)) {
-		error_msg.Text = "TNRIS Datahub Collection ID is invalid."
-		error_msg.Refresh()
 		running = false
 		return
 	}
 	if(len([]rune(save_dir)) == 0) {
-		error_msg.Text = "No directory has been chosen"
-		error_msg.Refresh()
 		running = false
 		return
 	}
+	// Show progress bar
+	pbar.Show()
 
 	base_url := SERVER_LOCATION + "/api/v1/resources/"
 	id_query := "?collection_id="
@@ -265,43 +275,45 @@ func downloadData(url string, id string, progress []int) {
 	logData = append(logData, fname + " Downloading")
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
-	
+
 	if err != nil {
-		error_msg.Text = "err: " + err.Error()
-		error_msg.Refresh()
+		//TODO
 	}
 
 	defer resp.Body.Close()
-	fmt.Println("status", resp.Status)
+
 	if resp.StatusCode != 200 {
-		log.Println("Statuscode is not 200")
-		downloading--
-		wg.Done()
+		logData = append(logData, "Failed to download " + fname + ". Statuscode is: " + fmt.Sprint(resp.StatusCode) + ".")
+		exitDownload()
 		return
 	}
 
 	out, err := os.Create(save_dir + "/" + fname)
 
 	if err != nil {
-		error_msg.Text = "err: " + err.Error()
-		error_msg.Refresh()
+		//TODO
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
-	downloading --
-	downloaded ++
+	exitDownload()
 
 	//	update download bar.
 	var f float64 = float64(downloaded) / float64(progress[1])
 	pbar.SetValue(f)
 	updateDownloadProgress(fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
-	wg.Done()
-	logData = append(logData, fname + " Finished. " + fmt.Sprint(downloading) + " In queue. " + fmt.Sprint(downloaded) + " / " + fmt.Sprint(progress[1]))
+	logData = append(logData, fname + " Completed")
 
 	if err != nil {
 		log.Println("err: " + err.Error())
 	}
+}
+
+// exitDownload updates download progress and stops waiting (wg.Done())
+func exitDownload() {
+	downloaded++
+	downloading--
+	wg.Done()
 }
 
 // cancelDownloads loops over the currentDownloads slice (Each item in the currentDownloads slice is a Http.resp)
@@ -318,14 +330,13 @@ func cancelDownloads(reset bool) {
 	}
 }
 
-func getCategories() *fyne.Container {
+func getCategories() *container.Scroll {
 	base_url := SERVER_LOCATION + "/api/v1/resource_types/"
 
 	resp, err := http.Get(base_url)
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
-		error_msg.Text = "Error in getCategories()"
-		error_msg.Refresh()
+		//TODO
 	}
 
 	results := &RIds{}
@@ -357,7 +368,7 @@ func getCategories() *fyne.Container {
 		}
 	}
 
-	return container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox)
+	return container.NewVScroll(container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox))
 }
 
 
