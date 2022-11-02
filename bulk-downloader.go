@@ -123,7 +123,7 @@ func configGetDataButton(input *widget.Entry) *widget.Button {
 func configLog() *widget.List {
 
 	// List has no onscroll callback api exposed right now. So it must refresh on an interval
-	var ticker *time.Ticker = time.NewTicker(100 * time.Millisecond)
+	var ticker *time.Ticker = time.NewTicker(500 * time.Millisecond)
 	go func() {
 		for {
 			select {
@@ -342,6 +342,12 @@ func downloadData(url string, id string, progress []int) {
 }
 
 func printLog(msg string) {
+	var x string
+	// Pop the old messages 
+	if(len(logData) > 100) {
+		x, logData = logData[0], logData[1:]
+		_ = x
+	}
 	logData = append(logData, msg)
 	outLog.ScrollToBottom()
 }
