@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
-
+	"time"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -121,6 +121,18 @@ func configGetDataButton(input *widget.Entry) *widget.Button {
 }
 
 func configLog() *widget.List {
+
+	// List has no onscroll callback api exposed right now. So it must refresh on an interval
+	var ticker *time.Ticker = time.NewTicker(100 * time.Millisecond)
+	go func() {
+		for {
+			select {
+				case <-ticker.C:
+					outLog.Refresh()
+			}
+		}
+	}()
+
 	return widget.NewList(
 		func() int {
 			return len(logData)
@@ -171,7 +183,7 @@ func main() {
 	
 	// Configure the Log
 	outLog = configLog()
-
+	
 	uuid_input := container.NewVBox(contentUUID, inputBrowse)
 
 	progress_stopStart := container.NewVBox(pbar, stopStartBtn)
