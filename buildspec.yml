@@ -1,0 +1,18 @@
+version 0.2
+
+phases:
+  install:
+    runtime-versions:
+      golang: 1.18
+  pre_build:
+    commands:
+      - go install github.com/fyne-io/fyne-cross@latest
+  build:
+    commands:
+      - fyne-cross windows
+  post_build:
+    commands: 
+      - echo Placeholder for post build
+artifacts:
+  files:
+    - fyne-cross/bin/windows-amd64/go-bulk-downloader.exe
