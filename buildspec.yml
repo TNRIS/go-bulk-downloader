@@ -4,16 +4,16 @@ phases:
     runtime-versions: 
       golang: 1.18
     commands: 
-      - echo Placeholder for install
+      - "echo Placeholder for install"
   pre_build: 
     commands: 
-      - go install github.com/fyne-io/fyne-cross@latest
+      - "go install github.com/fyne-io/fyne-cross@latest"
   build: 
     commands: 
-      - fyne-cross windows
+      - "fyne-cross windows"
   post_build: 
     commands: 
-      - echo Placeholder for post build
+      - "echo Placeholder for post build"
 artifacts: 
   files: 
-    - fyne-cross/bin/windows-amd64/go-bulk-downloader.exe
+    - "fyne-cross/bin/windows-amd64/go-bulk-downloader.exe"
