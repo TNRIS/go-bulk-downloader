@@ -4,6 +4,8 @@ phases:
   install: 
     runtime-versions: 
       golang: 1.18
+    commands: 
+      - echo Placeholder for install
   pre_build: 
     commands: 
       - go install github.com/fyne-io/fyne-cross@latest
