@@ -4,7 +4,8 @@
 *.dll
 *.so
 *.dylib
-
+fyne-cross/
+node_modules/
 # Test binary, built with `go test -c`
 *.test
 
