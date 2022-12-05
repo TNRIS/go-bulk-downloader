@@ -343,7 +343,7 @@ func downloadData(url string, id string, progress []int) {
 
 func printLog(msg string) {
 	var x string
-	// Pop the old messages 
+	// Pop the old messages.
 	if(len(logData) > 100) {
 		x, logData = logData[0], logData[1:]
 		_ = x
