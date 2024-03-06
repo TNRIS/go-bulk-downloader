@@ -53,8 +53,8 @@ var sel_ctgry string = ""
 // inputWidget keeps track of where we will download the files to.
 var inputWidget *widget.Label = widget.NewLabel("Browse to folder to download: \n" + save_dir)
 
-// Embed TNRIS_LOGO.png in binary
-//go:embed TNRIS_LOGO.png
+// Embed TXGIO_LOGO.png in binary
+//go:embed TXGIO_LOGO.png
 var logobytes []byte
 
 // log list of downloads
@@ -161,7 +161,7 @@ func main() {
 	myApp := app.New()
 	myApp.Settings().SetTheme(theme.DarkTheme())
 
-	myWindow := myApp.NewWindow("TNRIS DataHub Bulk Download Utility")
+	myWindow := myApp.NewWindow("TXGIO DataHub Bulk Download Utility")
 	input := widget.NewEntry()
 	pbar = widget.NewProgressBar()
 
@@ -170,9 +170,9 @@ func main() {
 	getDataButton := configGetDataButton(input)
 	
 	var lb = bytes.NewReader(logobytes)
-	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TNRIS_LOGO.png")
+	var logo *canvas.Image = canvas.NewImageFromReader(lb, "TXGIO_LOGO.png")
 	logo.FillMode = canvas.ImageFillContain
-	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TNRIS DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
+	contentUUID := container.New(layout.NewGridLayout(3), container.New(layout.NewVBoxLayout(), widget.NewLabel("Enter a TXGIO DataHub Collection ID: ")), container.New(layout.NewVBoxLayout(),input))
 	//filterNote := widget.NewLabel("If the collection entered has multiple resource types, filter them here.\nNo filter selection will result in all collection resources downloaded.")
 	
 	stopStartBtn := container.New(layout.NewGridLayout(2), stopButton, getDataButton)
@@ -248,7 +248,7 @@ func getData(input widget.Entry) {
 
 	if(!IsValidUUID(input.Text)) {
 		running = false
-		printLog("Error: TNRIS Datahub Collection ID is invalid.")
+		printLog("Error: TXGIO Datahub Collection ID is invalid.")
 		return
 	}
 	if(len([]rune(save_dir)) == 0) {

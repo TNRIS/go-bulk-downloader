@@ -2,7 +2,7 @@
     "[go]": {
         "editor.formatOnSave": false,
         "editor.codeActionsOnSave": {
-            "source.organizeImports": false
+            "source.organizeImports": "never"
         }
     },
     "editor.formatOnSave": false
