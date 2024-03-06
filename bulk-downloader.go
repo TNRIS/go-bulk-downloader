@@ -29,7 +29,7 @@ var SERVER_LOCATION string = "https://api.tnris.org"
 // Keep track of where the user wants to save the files
 var save_dir string = ""
 
-// Flag to stop downloading immediately
+// Flag to stop downloading immediately.
 var stop_now bool = false
 
 // Flag to keep track of whether a download is in progress
