@@ -388,16 +388,16 @@ func getCategories() *container.Scroll {
 	results := &RIds{}
 	json.Unmarshal([]byte(string(body)), results)
 
-	lidarLabel := canvas.NewText("Lidar", color.White)
-	lidarLabel.TextStyle = fyne.TextStyle{Bold: true}
+	elevationLabel := canvas.NewText("Elevation", color.White)
+	elevationLabel.TextStyle = fyne.TextStyle{Bold: true}
 
 	imageryLabel := canvas.NewText("Imagery", color.White)
 	imageryLabel.TextStyle = fyne.TextStyle{Bold: true}
 
 	otherLabel := canvas.NewText("Other", color.White)
 	otherLabel.TextStyle = fyne.TextStyle{Bold: true}
-	lidarBox := container.NewVBox()
-	lidarBox.Add(lidarLabel)
+	elevationBox := container.NewVBox()
+	elevationBox.Add(elevationLabel)
 	imageryBox := container.NewVBox()
 
 	imageryBox.Add(imageryLabel)
@@ -407,13 +407,13 @@ func getCategories() *container.Scroll {
 	for i := 0; i < len(results.Ids); i++ {
 		if results.Ids[i].ResourceTypeCategory == "IMAGERY" {
 			addCheckToThis(imageryBox, &results.Ids[i])
-		} else if results.Ids[i].ResourceTypeCategory == "LIDAR" {
-			addCheckToThis(lidarBox, &results.Ids[i])
+		} else if results.Ids[i].ResourceTypeCategory == "ELEVATION" {
+			addCheckToThis(elevationBox, &results.Ids[i])
 		} else {
 			addCheckToThis(otherBox, &results.Ids[i])
 		}
 	}
-	scrollbox := container.NewScroll(container.New(layout.NewGridLayout(3), lidarBox, imageryBox, otherBox))
+	scrollbox := container.NewScroll(container.New(layout.NewGridLayout(3), elevationBox, imageryBox, otherBox))
 
 	pos += 100
 
