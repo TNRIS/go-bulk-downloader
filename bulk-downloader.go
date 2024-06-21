@@ -21,7 +21,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/google/uuid"
-	"io/ioutil"
 )
 var wg sync.WaitGroup
 
@@ -158,13 +157,7 @@ func configLog() *widget.List {
 
 // main sets up the GUI and button actions
 func main() {
-	content, err := ioutil.ReadFile("VERSION")
-
-	var version = ""
-
-	if err == nil {
-		version = string(content)
-	}
+	var version = "1.1.1"
 
 	// Configure the application
 	myApp := app.New()
