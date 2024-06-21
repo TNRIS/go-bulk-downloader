@@ -157,7 +157,7 @@ func configLog() *widget.List {
 
 // main sets up the GUI and button actions
 func main() {
-	var version = "1.1.1"
+	var version = "1.1.2"
 
 	// Configure the application
 	myApp := app.New()
