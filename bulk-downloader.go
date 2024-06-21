@@ -21,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/google/uuid"
+	"io/ioutil"
 )
 var wg sync.WaitGroup
 
@@ -157,6 +158,14 @@ func configLog() *widget.List {
 
 // main sets up the GUI and button actions
 func main() {
+	content, err := ioutil.ReadFile("VERSION")
+
+	var version = ""
+
+	if err == nil {
+		version = string(content)
+	}
+
 	// Configure the application
 	myApp := app.New()
 	myApp.Settings().SetTheme(theme.DarkTheme())
@@ -199,9 +208,9 @@ func main() {
 	outLog.Move(fyne.NewPos(0, pos))
 
 	// Position Logo (Not relative to other containers.)
-	logo_container := container.New(layout.NewGridLayoutWithColumns(1), logo)
-	logo_container.Resize(fyne.NewSize(160,160))
-	logo_container.Move(fyne.NewPos(740, -40))
+	logo_container := container.New(layout.NewGridLayoutWithColumns(2), logo, canvas.NewText("Ver: " + version, color.White))
+	logo_container.Resize(fyne.NewSize(320,160))
+	logo_container.Move(fyne.NewPos(700, -40))
 
 
 	allstuff := container.NewWithoutLayout(uuid_input, categories, progress_stopStart, outLog, logo_container)
