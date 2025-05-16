@@ -67,6 +67,8 @@ var categories *container.Scroll
 var outLog *widget.List
 var pbar *widget.ProgressBar
 
+var version = "1.1.3"
+
 type RId struct {
 	ResourceTypeName string `json:"resource_type_name"`
 	ResourceTypeAbbreviation string `json:"resource_type_abbreviation"`
@@ -157,8 +159,6 @@ func configLog() *widget.List {
 
 // main sets up the GUI and button actions
 func main() {
-	var version = "1.1.2"
-
 	// Configure the application
 	myApp := app.New()
 	myApp.Settings().SetTheme(theme.DarkTheme())
@@ -219,24 +219,48 @@ func IsValidUUID(u string) bool {
     return err == nil
 }
 
+// Make a request of type typeof, to the provided url. Returns a Response object.
+func headerRequest(typeof string, url string) *http.Response{
+	req, err := http.NewRequest(typeof, url, nil)
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
+	}
+	req.Header.Add("User-Agent", "TxGIO Bulk Downloader " + version)
+
+	c := http.Client{Timeout: time.Duration(1200) * time.Second}
+
+	resp, err := c.Do(req)
+
+ 	if err != nil {
+        printLog(fmt.Sprintf("Error: %s", err))
+    }
+
+	return resp
+}
+
+// make a request of type typeof, to url. Then return a pointer to the body as a byte array.
+func requester(typeof string, url string) *[]byte {
+	var resp = headerRequest(typeof, url)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if(err != nil) {
+		printLog(fmt.Sprintf("Error: %s", err))
+	}
+
+	return &body
+}
+
 // getResp gets a list of DataHubItems from the url sent in
 func getResp(getUrl string, type_query string) *DataHubItems{
 	if(sel_ctgry != "") {
 		getUrl = getUrl + type_query
 	}
 
-	resp, err := http.Get(getUrl)
-	if(err != nil) {
-		printLog(fmt.Sprintf("Error: %s", err))
-	}
-	body, err := io.ReadAll(resp.Body)
-	if(err != nil) {
-		printLog(fmt.Sprintf("Error: %s", err))
-	}
-	defer resp.Body.Close()
+	var body = requester("GET", getUrl);
 
 	results := &DataHubItems{}
-	json.Unmarshal([]byte(string(body)), results)
+	json.Unmarshal([]byte(string(*body)), results)
 	
 	return results
 }
@@ -301,7 +325,8 @@ func getData(input widget.Entry) {
 
 //downloadData downloads each zip file individually
 func downloadData(url string, id string, progress []int) {
-	resp, err := http.Get(url)
+	resp := headerRequest("GET", url)
+	defer resp.Body.Close()
 
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
@@ -309,10 +334,6 @@ func downloadData(url string, id string, progress []int) {
 
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
-
-	if(err != nil) {
-		printLog(fmt.Sprintf("Error: %s", err))
-	}
 
 	defer resp.Body.Close()
 
@@ -377,18 +398,10 @@ func cancelDownloads(reset bool) {
 
 func getCategories() *container.Scroll {
 	base_url := SERVER_LOCATION + "/api/v1/resource_types/"
-
-	resp, err := http.Get(base_url)
-	if(err != nil) {
-		printLog(fmt.Sprintf("Error: %s", err))
-	}
-	body, err := io.ReadAll(resp.Body)
-	if(err != nil) {
-		printLog(fmt.Sprintf("Error: %s", err))
-	}
+	var body = requester("GET", base_url);
 
 	results := &RIds{}
-	json.Unmarshal([]byte(string(body)), results)
+	json.Unmarshal([]byte(string(*body)), results)
 
 	elevationLabel := canvas.NewText("Elevation", color.White)
 	elevationLabel.TextStyle = fyne.TextStyle{Bold: true}
