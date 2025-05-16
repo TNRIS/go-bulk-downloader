@@ -240,7 +240,7 @@ func headerRequest(typeof string, url string) *http.Response{
 
 // make a request of type typeof, to url. Then return a pointer to the body as a byte array.
 func requester(typeof string, url string) *[]byte {
-	var resp = headerRequest(typeof, url)
+	resp := headerRequest(typeof, url)
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -257,8 +257,7 @@ func getResp(getUrl string, type_query string) *DataHubItems{
 		getUrl = getUrl + type_query
 	}
 
-	var body = requester("GET", getUrl);
-
+	body := requester("GET", getUrl);
 	results := &DataHubItems{}
 	json.Unmarshal([]byte(string(*body)), results)
 	
@@ -396,7 +395,7 @@ func cancelDownloads(reset bool) {
 
 func getCategories() *container.Scroll {
 	base_url := SERVER_LOCATION + "/api/v1/resource_types/"
-	var body = requester("GET", base_url);
+	body := requester("GET", base_url);
 
 	results := &RIds{}
 	json.Unmarshal([]byte(string(*body)), results)
