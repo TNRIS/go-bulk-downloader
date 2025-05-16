@@ -335,8 +335,6 @@ func downloadData(url string, id string, progress []int) {
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
 	currentDownloads = append(currentDownloads, resp)
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != 200 {
 		printLog("Error: Failed to download " + fname + ". Statuscode is: " + fmt.Sprint(resp.StatusCode) + ".")
 		exitDownload()
