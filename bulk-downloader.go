@@ -224,6 +224,7 @@ func headerRequest(typeof string, url string) *http.Response{
 	req, err := http.NewRequest(typeof, url, nil)
 	if(err != nil) {
 		printLog(fmt.Sprintf("Error: %s", err))
+		return nil
 	}
 	req.Header.Add("User-Agent", "TxGIO Bulk Downloader " + version)
 
@@ -231,8 +232,9 @@ func headerRequest(typeof string, url string) *http.Response{
 
 	resp, err := c.Do(req)
 
- 	if err != nil {
+  	if err != nil {
         printLog(fmt.Sprintf("Error: %s", err))
+		return nil
     }
 
 	return resp
@@ -241,11 +243,17 @@ func headerRequest(typeof string, url string) *http.Response{
 // make a request of type typeof, to url. Then return a pointer to the body as a byte array.
 func requester(typeof string, url string) *[]byte {
 	resp := headerRequest(typeof, url)
+	if resp == nil {
+		empty := []byte{}
+		return &empty
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if(err != nil) {
 		printLog(fmt.Sprintf("Error: %s", err))
+		empty := []byte{}
+		return &empty
 	}
 
 	return &body
@@ -324,11 +332,17 @@ func getData(input widget.Entry) {
 
 //downloadData downloads each zip file individually
 func downloadData(url string, id string, progress []int) {
-	resp := headerRequest("GET", url)
-	defer resp.Body.Close()
-
 	fnames := strings.Split(url, "/")
 	fname := fnames[len(fnames) - 1]
+
+	resp := headerRequest("GET", url)
+	if resp == nil {
+		printLog("Error: Failed to download " + fname + ". Request failed.")
+		exitDownload()
+		return
+	}
+	defer resp.Body.Close()
+
 	printLog(fname + " Downloading")
 
 	// Check whether any items in abbr_list are true and add them to resource_type_abbreviations
@@ -385,7 +399,9 @@ func exitDownload() {
 // Use this function to stop all downloads in progress and clean up.
 func cancelDownloads(reset bool) {
 	for i := 0; i < len(currentDownloads); i++ {
-		currentDownloads[i].Body.Close()
+		if currentDownloads[i] != nil && currentDownloads[i].Body != nil {
+			currentDownloads[i].Body.Close()
+		}
 	}
 	currentDownloads = nil
 	if(reset) {
